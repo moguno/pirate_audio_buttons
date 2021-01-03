@@ -9,10 +9,15 @@
 
 
 // プロトタイプ宣言
-void push_button_a();
-void push_button_b();
-void push_button_x();
-void push_button_y();
+void press_button_a();
+void press_button_b();
+void press_button_x();
+void press_button_y();
+
+void release_button_a();
+void release_button_b();
+void release_button_x();
+void release_button_y();
 
 //! プログラム終了フラグ
 static int g_need_finish = 0;
@@ -26,8 +31,15 @@ static int g_uinput_fd;
 //! A,B,X,YボタンのGPIOピン
 static int g_gpio_pins[4] = {5, 6, 16, 20};
 
-//! A,B,X,Yボタンの割り込みハンドラ
-static void (*g_gpio_handlers[4])() = {&push_button_a, &push_button_b, &push_button_x, &push_button_y};
+//! A,B,X,Yボタンを押したときの割り込みハンドラ
+static void (*g_button_press_handlers[4])() = {&press_button_a, &press_button_b, &press_button_x, &press_button_y};
+
+//! A,B,X,Yボタンを離したときの割り込みハンドラ
+static void (*g_button_release_handlers[4])() = {&release_button_a, &release_button_b, &release_button_x, &release_button_y};
+
+//! A,B,X,Yボタンが押されている状態
+static int g_button_status[4] = {0, 0, 0, 0};
+
 
 /**
  * @fn
@@ -67,13 +79,19 @@ int event_send(int type, int code, int value) {
 /**
  * @fn
  * @brief ボタンを押したときの処理
- * @param[in] event_code イベントコード
+ * @param[in] index 0:A、1:B、2:X、3:Y
  */
-void push_button(int event_code) {
+void press_button(int index) {
 	struct input_event ev;
 	int ret;
 
+	int event_code = g_event_codes[index];
+
 	if (event_code == 0) {
+		return;
+	}
+
+	if (g_button_status[index] == 1) {
 		return;
 	}
 
@@ -81,6 +99,35 @@ void push_button(int event_code) {
 
 	if (ret != 0) {
 		fprintf(stderr, "key press event write error\n");
+		return;
+	}
+
+	ret = event_send(EV_SYN, 0, 0);
+
+	if (ret != 0) {
+		fprintf(stderr, "sync event write error\n");
+		return;
+	}
+
+	g_button_status[index] = 1;
+}
+
+/**
+ * @fn
+ * @brief ボタンを離したときの処理
+ * @param[in] index 0:A、1:B、2:X、3:Y
+ */
+void release_button(int index) {
+	struct input_event ev;
+	int ret;
+
+	int event_code = g_event_codes[index];
+
+	if (event_code == 0) {
+		return;
+	}
+
+	if (g_button_status[index] == 0) {
 		return;
 	}
 
@@ -98,38 +145,71 @@ void push_button(int event_code) {
 		return;
 	}
 
+	g_button_status[index] = 0;
 }
 
 /**
  * @fn
  * @brief Aボタンを押したときの処理
  */
-void push_button_a() {
-	push_button(g_event_codes[0]);
+void press_button_a() {
+	press_button(0);
 }
 
 /**
  * @fn
  * @brief Bボタンを押したときの処理
  */
-void push_button_b() {
-	push_button(g_event_codes[1]);
+void press_button_b() {
+	press_button(1);
 }
 
 /**
  * @fn
  * @brief Xボタンを押したときの処理
  */
-void push_button_x() {
-	push_button(g_event_codes[2]);
+void press_button_x() {
+	press_button(2);
 }
 
 /**
  * @fn
  * @brief Yボタンを押したときの処理
  */
-void push_button_y() {
-	push_button(g_event_codes[3]);
+void press_button_y() {
+	press_button(3);
+}
+
+/**
+ * @fn
+ * @brief Aボタンを離したときの処理
+ */
+void release_button_a() {
+	release_button(0);
+}
+
+/**
+ * @fn
+ * @brief Bボタンを離したときの処理
+ */
+void release_button_b() {
+	release_button(1);
+}
+
+/**
+ * @fn
+ * @brief Xボタンを離したときの処理
+ */
+void release_button_x() {
+	release_button(2);
+}
+
+/**
+ * @fn
+ * @brief Yボタンを離したときの処理
+ */
+void release_button_y() {
+	release_button(3);
 }
 
 /**
@@ -155,7 +235,8 @@ int setup_gpio() {
 	for (i = 0; i < sizeof(g_gpio_pins) / sizeof(g_gpio_pins[0]); i++) {
 		pinMode(g_gpio_pins[i] ,INPUT);
         	pullUpDnControl(g_gpio_pins[i], PUD_UP);
-		wiringPiISR(g_gpio_pins[i], INT_EDGE_FALLING, g_gpio_handlers[i]);
+		wiringPiISR(g_gpio_pins[i], INT_EDGE_RISING, g_button_press_handlers[i]);
+		wiringPiISR(g_gpio_pins[i], INT_EDGE_FALLING, g_button_release_handlers[i]);
 	}
 
 	return 0;
