@@ -37,9 +37,9 @@ static struct timespec g_button_last_pressed_times[4] = {0, 0, 0, 0};
 
 /**
  * @fn
- * @brief SIGINTをハンドルする関数
+ * @brief 終了シグナルをハンドルする関数
  */
-void sigint_handler(int signum) {
+void terminate_signal_handler(int signum) {
 	g_need_finish = 1;	
 }
 
@@ -269,7 +269,8 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	signal(SIGINT, &sigint_handler);
+	signal(SIGINT, &terminate_signal_handler);
+	signal(SIGTERM, &terminate_signal_handler);
 
 	setup_gpio();
 
