@@ -1,5 +1,6 @@
 #include <wiringPi.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <memory.h>
@@ -255,12 +256,13 @@ int main(int argc, char *argv[]) {
 	int fd;
 	int i;	
 
+	// コマンドライン引数のパース
 	if (argc != 5) {
 		usage(argv[0]);
 		return 1;
 	}
 
-	for(i = 0; i < 4; i++) {
+	for (i = 0; i < 4; i++) {
 		ret = sscanf(argv[i + 1], "%d", &g_event_codes[i]);
 
 		if ((ret != 1) || (g_event_codes[i] < 0)) {
@@ -269,13 +271,29 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
+	// 環境変数のパース
+	char *gpio_pins_env = getenv("BUTTON_GPIO_PINS");
+
+	if (gpio_pins_env != NULL) {
+		ret = sscanf(gpio_pins_env, "%d,%d,%d,%d", &g_gpio_pins[0], &g_gpio_pins[1], &g_gpio_pins[2], &g_gpio_pins[3]);
+
+		if ((ret != 4) || (g_gpio_pins[0] < 0) || (g_gpio_pins[1] < 0) || (g_gpio_pins[2] < 0) || (g_gpio_pins[3] < 0)) {
+			fprintf(stderr, "environment BUTTON_GPIO_PINS error\n");
+			return 1;
+		}
+	}
+
+	// シグナルハンドラの設定
 	signal(SIGINT, &terminate_signal_handler);
 	signal(SIGTERM, &terminate_signal_handler);
 
+	// GPIOの設定
 	setup_gpio();
 
+	// user inputの設定
 	g_uinput_fd = setup_uinput(g_event_codes);
 
+	// メインループ
 	while(1) {
 		if (g_need_finish) {
 			break;
